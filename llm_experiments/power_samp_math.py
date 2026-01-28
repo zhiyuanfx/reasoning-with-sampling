@@ -95,8 +95,9 @@ if __name__ == "__main__":
     start = args.batch_size * args.batch_idx
     end = args.batch_size * (args.batch_idx + 1)
 
+    print(f"[info] solving problems {start} - {end - 1}")
     for problem, data in enumerate(dataset[start:end]):
-        print(f"[info] solving problem idx: {start + problem}")
+        print(f"\n[info] solving problem idx: {start + problem}")
         question = data["prompt"]
         # print(question)
         answer = data["answer"]
@@ -158,7 +159,7 @@ if __name__ == "__main__":
             "mcmc_answer": mcmc_answer,
         })
 
-    print(f"[info] Total experiment time: {time.perf_counter() - t0} seconds")
+    print(f"\n[info] Total experiment time: {time.perf_counter() - t0} seconds")
     df = pd.DataFrame(results)
     df.to_csv(os.path.join(save_str, model+"_math_base_power_samp_results_" + str(mcmc_steps) + "_" + str(temp) + "_" + str(args.batch_idx)  + "_" + str(args.seed) + ".csv"), index=False)
     
