@@ -39,12 +39,14 @@ if __name__ == "__main__":
     parser.add_argument("--mcmc_steps", action = "store", type = int, default = 10)
     parser.add_argument("--device", action = "store", type = str, dest = "device", default = "cuda" if torch.cuda.is_available() else 'cpu')
     parser.add_argument("--batch_idx", action = "store", type = int, default = 0)
+    parser.add_argument("--batch_size", action = "store", type = int, default = 10)
     parser.add_argument("--seed", action = "store", type = int, default = 0)
     args = parser.parse_args()
 
     random.seed(0)
 
-
+    import time
+    t0 = time.perf_counter()
     model = args.model
     device = args.device
     dataset_name = args.dataset
@@ -78,14 +80,14 @@ if __name__ == "__main__":
 
     print("dataset done")
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_str, trust_remote_code = True)
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(model_str, torch_dtype="auto", device_map="auto", trust_remote_code = True).to(device)
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(model_str, torch_dtype="auto", trust_remote_code = True).to(device)
     autoreg_sampler = AutoregressiveSampler(hf_model, tokenizer, device)
 
     print("loaded models")
     results = []
 
-    start = 100*args.batch_idx
-    end = 100*(args.batch_idx+1)
+    start = args.batch_size * args.batch_idx
+    end = args.batch_size * (args.batch_idx + 1)
 
     for problem, data in tqdm(enumerate(dataset[start:end]), desc = "Benchmark on MATH"):
         question = data["prompt"]
@@ -148,7 +150,7 @@ if __name__ == "__main__":
             "mcmc_answer": mcmc_answer,
         })
 
-    
+    print("Total experiment time:", time.perf_counter() - t0)
     df = pd.DataFrame(results)
     df.to_csv(os.path.join(save_str, model+"_math_base_power_samp_results_" + str(mcmc_steps) + "_" + str(temp) + "_" + str(args.batch_idx)  + "_" + str(args.seed) + ".csv"), index=False)
     
@@ -165,7 +167,6 @@ if __name__ == "__main__":
 
 
         
-
 
 
 

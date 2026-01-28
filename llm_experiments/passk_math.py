@@ -53,9 +53,9 @@ def plot_passk(fnames):
           df = pd.read_csv(fname)
           for i in range(len(df)):
               prob_id = idx*(len(df)) + i
-              correct_by_seed[seed, prob_id] = safe_grade(df["mcmc_answer"][i], df["correct_answer"][i])
-              # correct_by_seed[seed, prob_id] = safe_grade(df["std_answer"][i], df["correct_answer"][i])
-              # correct_by_seed[seed, prob_id] = safe_grade(df["naive_answer"][i], df["correct_answer"][i])
+              correct_by_seed[seed, prob_id] = safe_grade_math(df["mcmc_answer"][i], df["correct_answer"][i])
+              # correct_by_seed[seed, prob_id] = safe_grade_math(df["std_answer"][i], df["correct_answer"][i])
+              # correct_by_seed[seed, prob_id] = safe_grade_math(df["naive_answer"][i], df["correct_answer"][i])
     
     
     best_of_N_acc = []
@@ -97,8 +97,10 @@ def plot_passk(fnames):
 
 
 if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
     parser = argparse.ArgumentParser()
-    parser.add_argument("folder", type=str)
+    parser.add_argument("--folder", type=str)
     args = parser.parse_args()
 
     folder = Path(args.folder)
