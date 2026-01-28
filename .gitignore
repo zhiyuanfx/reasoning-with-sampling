@@ -3,3 +3,6 @@ llm_experiments/results/*
 
 # ignore any pycache in any folder
 **/__pycache__/
+
+# ignore Jupyter Notebooks
+**/*.ipynb

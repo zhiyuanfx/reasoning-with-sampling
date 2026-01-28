@@ -1,5 +1,11 @@
 import os
 
+# Silence HuggingFace Transformers warnings like "attention mask not set..." and
+# "Setting pad_token_id to eos_token_id..."
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+from transformers.utils import logging as hf_logging
+hf_logging.set_verbosity_error()
+
 from contextlib import nullcontext
 from glob import glob
 import json
@@ -43,7 +49,7 @@ if __name__ == "__main__":
     parser.add_argument("--seed", action = "store", type = int, default = 0)
     args = parser.parse_args()
 
-    random.seed(0)
+    random.seed(args.seed)
 
     import time
     t0 = time.perf_counter()
@@ -58,9 +64,9 @@ if __name__ == "__main__":
     os.makedirs(save_str, exist_ok=True)
 
 
-    print(model)
-    print(device)
-    print(mcmc_steps)
+    # print(model)
+    # print(device)
+    # print(mcmc_steps)
     if model == "qwen":
         model_str = "Qwen/Qwen2.5-7B"
     elif model == "qwen_math":
@@ -78,47 +84,51 @@ if __name__ == "__main__":
 
 
 
-    print("dataset done")
+    print("[info] dataset done")
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_str, trust_remote_code = True)
-    hf_model = transformers.AutoModelForCausalLM.from_pretrained(model_str, torch_dtype="auto", trust_remote_code = True).to(device)
+    hf_model = transformers.AutoModelForCausalLM.from_pretrained(model_str, dtype="auto", trust_remote_code = True).to(device)
     autoreg_sampler = AutoregressiveSampler(hf_model, tokenizer, device)
 
-    print("loaded models")
+    print("[info] loaded models")
     results = []
 
     start = args.batch_size * args.batch_idx
     end = args.batch_size * (args.batch_idx + 1)
 
-    for problem, data in tqdm(enumerate(dataset[start:end]), desc = "Benchmark on MATH"):
+    for problem, data in enumerate(dataset[start:end]):
+        print(f"[info] solving problem idx: {start + problem}")
         question = data["prompt"]
-        print(question)
+        # print(question)
         answer = data["answer"]
 
         input_text = format_prompt(question, model, tokenizer, cot)
         input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
         prefx = [idx.item() for idx in input_ids[0]]
 
+        t0_naive = time.perf_counter()
         naive_temp_output = hf_model.generate(input_ids, max_new_tokens=3072, 
                                 return_dict_in_generate=True, output_scores=True, do_sample = True, temperature = temp)
         
-        print(tokenizer.decode(naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
-        print("naive done")
+        # print(tokenizer.decode(naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
+        print(f"[info] naive done in {time.perf_counter() - t0_naive} seconds")
         
         
+        t0_std = time.perf_counter()
         std_output = hf_model.generate(input_ids, max_new_tokens=3072, 
                                 return_dict_in_generate=True, output_scores=True, do_sample = True)
         
-        print(tokenizer.decode(std_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
-        print("std done")
+        # print(tokenizer.decode(std_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
+        print(f"[info] std done in {time.perf_counter() - t0_std} seconds")
 
+        t0_mcmc = time.perf_counter()
         mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072)
 
-        print(len(std_output))
-        print(len(naive_temp_output))
-        print(len(mcmc_power_samp_output))
-        print(tokenizer.decode(torch.tensor([mcmc_power_samp_output], dtype=torch.long, device=device).squeeze().to("cpu"), skip_special_tokens=True))
-        print("mcmc done")
-
+        # print(len(std_output))
+        # print(len(naive_temp_output))
+        # print(len(mcmc_power_samp_output))
+        # print(tokenizer.decode(torch.tensor([mcmc_power_samp_output], dtype=torch.long, device=device).squeeze().to("cpu"), skip_special_tokens=True))
+        print(f"[info] mcmc power samp done in {time.perf_counter() - t0_mcmc} seconds, acceptance ratio: {acceptance_ratio}")
+        
         naive_generated_ids = naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu")
         std_generated_ids = std_output[0][:, len(input_ids[0]):].squeeze().to("cpu")
         mcmc_power_samp_ids = torch.tensor([mcmc_power_samp_output], dtype=torch.long, device=device).squeeze().to("cpu")
@@ -131,13 +141,11 @@ if __name__ == "__main__":
         std_answer = parse_answer(std_completion)
         mcmc_answer = parse_answer(mcmc_completion)
         
-        print(naive_answer)
-        print(std_answer)
-        print(mcmc_answer)
-        print(question)
-        print(answer)
-        print(f'Acceptance: {acceptance_ratio}')
-
+        # print(naive_answer)
+        # print(std_answer)
+        # print(mcmc_answer)
+        # print(question)
+        # print(answer)
 
         results.append({
             "question": question,
@@ -150,7 +158,7 @@ if __name__ == "__main__":
             "mcmc_answer": mcmc_answer,
         })
 
-    print("Total experiment time:", time.perf_counter() - t0)
+    print(f"[info] Total experiment time: {time.perf_counter() - t0} seconds")
     df = pd.DataFrame(results)
     df.to_csv(os.path.join(save_str, model+"_math_base_power_samp_results_" + str(mcmc_steps) + "_" + str(temp) + "_" + str(args.batch_idx)  + "_" + str(args.seed) + ".csv"), index=False)
     

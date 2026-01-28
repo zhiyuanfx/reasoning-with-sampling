@@ -101,7 +101,7 @@ def naive_temp(p : AutoregressiveSampler, context, temp, seq_len):
 # alpha = infty power sampling; temp is for proposal distribution
 def max_swap(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_tokens, block_num=16):
     c = len(context)
-    print(f'Temp: {temp}')
+    # print(f'Temp: {temp}')
     gen = []
     if context is not None:
         gen = context.copy()
@@ -109,20 +109,20 @@ def max_swap(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_token
     log_probs_unnorm = []
 
 
-    print(max_new_tokens)
+    # print(max_new_tokens)
     assert max_new_tokens % block_num == 0
     jump_size = int(max_new_tokens // block_num)
-    print(jump_size)
+    # print(jump_size)
     attempts = 0
     acceptances = 0
 
 
-    for _ in tqdm(range(block_num)):
+    for _ in range(block_num):
         gen, lp_norm, lp_unnorm = naive_temp(p, gen, temp=temp, seq_len=jump_size+len(gen))
         log_probs_norm.extend(lp_norm)
         log_probs_unnorm.extend(lp_unnorm)
 
-        for _ in tqdm(range(mcmc_steps)):
+        for _ in range(mcmc_steps):
             attempts+=1
             t = len(gen)
             idx = random.randint(c, t-1)
@@ -159,7 +159,7 @@ def max_swap(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_token
 # power sampling with autoregressive mcmc
 def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_tokens, block_num=16):
     c = len(context)
-    print(f'alpha: {1/temp}')
+    # print(f'alpha: {1/temp}')
     gen = []
     if context is not None:
         gen = context.copy()
@@ -167,20 +167,20 @@ def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_ne
     log_probs_unnorm = []
 
 
-    print(max_new_tokens)
+    # print(max_new_tokens)
     assert max_new_tokens % block_num == 0
     jump_size = int(max_new_tokens // block_num)
-    print(jump_size)
+    # print(jump_size)
     attempts = 0
     acceptances = 0
 
 
-    for _ in tqdm(range(block_num)):
+    for _ in range(block_num):
         gen, lp_norm, lp_unnorm = naive_temp(p, gen, temp=temp, seq_len=jump_size+len(gen))
         log_probs_norm.extend(lp_norm)
         log_probs_unnorm.extend(lp_unnorm)
 
-        for _ in tqdm(range(mcmc_steps)):
+        for _ in range(mcmc_steps):
             attempts+=1
             t = len(gen)
             idx = random.randint(c, t-1)
