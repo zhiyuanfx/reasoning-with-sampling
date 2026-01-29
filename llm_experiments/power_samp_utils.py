@@ -144,6 +144,9 @@ def max_swap(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_token
                 del prop
                 del log_prob_prop
                 del target_log_prob_cur
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         if p.tokenizer.eos_token_id in gen:
             eos_idx = gen.index(p.tokenizer.eos_token_id)
@@ -202,6 +205,9 @@ def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_ne
                 del prop
                 del log_prob_prop
                 del target_log_prob_cur
+        
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
         if p.tokenizer.eos_token_id in gen:
             eos_idx = gen.index(p.tokenizer.eos_token_id)
