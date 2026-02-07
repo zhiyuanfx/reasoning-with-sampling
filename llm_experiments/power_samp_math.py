@@ -107,16 +107,15 @@ if __name__ == "__main__":
         prefx = [idx.item() for idx in input_ids[0]]
 
         t0_naive = time.perf_counter()
-        naive_temp_output = hf_model.generate(input_ids, max_new_tokens=3072, 
-                                return_dict_in_generate=True, output_scores=True, do_sample = True, temperature = temp)
+        naive_temp_output = hf_model.generate(input_ids, max_new_tokens=3072, do_sample=True, temperature=temp)
+
         
         # print(tokenizer.decode(naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
         print(f"[info] naive done in {time.perf_counter() - t0_naive} seconds")
         
         
         t0_std = time.perf_counter()
-        std_output = hf_model.generate(input_ids, max_new_tokens=3072, 
-                                return_dict_in_generate=True, output_scores=True, do_sample = True)
+        std_output = hf_model.generate(input_ids, max_new_tokens=3072, do_sample=True)
         
         # print(tokenizer.decode(std_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
         print(f"[info] std done in {time.perf_counter() - t0_std} seconds")
@@ -130,8 +129,8 @@ if __name__ == "__main__":
         # print(tokenizer.decode(torch.tensor([mcmc_power_samp_output], dtype=torch.long, device=device).squeeze().to("cpu"), skip_special_tokens=True))
         print(f"[info] mcmc power samp done in {time.perf_counter() - t0_mcmc} seconds, acceptance ratio: {acceptance_ratio}")
         
-        naive_generated_ids = naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu")
-        std_generated_ids = std_output[0][:, len(input_ids[0]):].squeeze().to("cpu")
+        naive_generated_ids = naive_temp_output[:, len(input_ids[0]):].squeeze().to("cpu")
+        std_generated_ids   = std_output[:, len(input_ids[0]):].squeeze().to("cpu")
         mcmc_power_samp_ids = torch.tensor([mcmc_power_samp_output], dtype=torch.long, device=device).squeeze().to("cpu")
 
         naive_completion = tokenizer.decode(naive_generated_ids, skip_special_tokens=True)
