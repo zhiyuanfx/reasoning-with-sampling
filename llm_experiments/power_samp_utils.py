@@ -97,7 +97,7 @@ def naive_temp(p : AutoregressiveSampler, context, temp, seq_len):
     return prop, log_probs_norm.cpu().numpy(), log_probs_unnorm.cpu().numpy()
 
 @torch.inference_mode()
-def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_tokens, block_num=16):
+def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_tokens, block_num=16, sample_in_block=False):
     c = len(context)
     gen = []
     if context is not None:
@@ -120,7 +120,7 @@ def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_ne
         for _ in range(mcmc_steps):
             attempts+=1
             t = len(gen)
-            idx = random.randint(c, t-1)
+            idx = random.randint(c, t-1) if not sample_in_block else random.randint(max(c, t-jump_size), t-1)
             prop, log_prob_prop, target_log_prob_prop = naive_temp(p, gen[:idx], temp=temp, seq_len=t)
             s = len(prop)
             assert(len(log_prob_prop) == s - idx)

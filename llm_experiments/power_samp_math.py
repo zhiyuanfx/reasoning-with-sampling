@@ -47,6 +47,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_idx", action = "store", type = int, default = 0)
     parser.add_argument("--batch_size", action = "store", type = int, default = 10)
     parser.add_argument("--seed", action = "store", type = int, default = 0)
+    parser.add_argument("--sample_in_block", action = "store_true", default = False)
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -59,7 +60,7 @@ if __name__ == "__main__":
     cot = args.cot
     temp = args.temperature
     mcmc_steps = args.mcmc_steps
-
+    sample_in_block = args.sample_in_block
     save_str = os.path.join(args.save_str, model)
     os.makedirs(save_str, exist_ok=True)
 
@@ -121,7 +122,7 @@ if __name__ == "__main__":
         print(f"[info] std done in {time.perf_counter() - t0_std} seconds")
 
         t0_mcmc = time.perf_counter()
-        mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072)
+        mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
 
         # print(len(std_output))
         # print(len(naive_temp_output))
