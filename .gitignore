@@ -6,3 +6,7 @@ llm_experiments/results/*
 
 # ignore Jupyter Notebooks
 **/*.ipynb
+
+# ignore npz and csv data files
+**/*.npz
+**/*.csv
