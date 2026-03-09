@@ -48,6 +48,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", action = "store", type = int, default = 10)
     parser.add_argument("--seed", action = "store", type = int, default = 0)
     parser.add_argument("--sample_in_block", action = "store_true", default = False)
+    parser.add_argument("--semantic_block_truncate", action="store_true", default=False)
+    parser.add_argument("--semantic_block_one_step", action="store_true", default=False)
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -61,6 +63,9 @@ if __name__ == "__main__":
     temp = args.temperature
     mcmc_steps = args.mcmc_steps
     sample_in_block = args.sample_in_block
+    semantic_block_truncate = args.semantic_block_truncate
+    semantic_block_one_step = args.semantic_block_one_step
+    semantic_block = semantic_block_truncate or semantic_block_one_step
     save_str = os.path.join(args.save_str, model)
     os.makedirs(save_str, exist_ok=True)
 
@@ -83,8 +88,6 @@ if __name__ == "__main__":
         json_file = 'data/MATH500.json'
         dataset = json.load(open(json_file, "r"))
 
-
-
     print("[info] dataset done")
     tokenizer = transformers.AutoTokenizer.from_pretrained(model_str, trust_remote_code = True)
     hf_model = transformers.AutoModelForCausalLM.from_pretrained(model_str, dtype="auto", trust_remote_code = True).to(device)
@@ -103,14 +106,13 @@ if __name__ == "__main__":
         # print(question)
         answer = data["answer"]
 
-        input_text = format_prompt(question, model, tokenizer, cot)
+        input_text = format_prompt(question, model, tokenizer, cot, semantic_block=semantic_block)
         input_ids = tokenizer.encode(input_text, return_tensors="pt").to(device)
         prefx = [idx.item() for idx in input_ids[0]]
 
         t0_naive = time.perf_counter()
         naive_temp_output = hf_model.generate(input_ids, max_new_tokens=3072, do_sample=True, temperature=temp)
 
-        
         # print(tokenizer.decode(naive_temp_output[0][:, len(input_ids[0]):].squeeze().to("cpu"), skip_special_tokens=True))
         print(f"[info] naive done in {time.perf_counter() - t0_naive} seconds")
         
@@ -122,7 +124,12 @@ if __name__ == "__main__":
         print(f"[info] std done in {time.perf_counter() - t0_std} seconds")
 
         t0_mcmc = time.perf_counter()
-        mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
+        if semantic_block_one_step:
+            mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp_one_step(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
+        elif semantic_block_truncate:
+            mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp_truncate(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
+        else:
+            mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
 
         # print(len(std_output))
         # print(len(naive_temp_output))
@@ -147,6 +154,7 @@ if __name__ == "__main__":
         # print(mcmc_answer)
         # print(question)
         # print(answer)
+        print(f"[mcmc completion]: {mcmc_completion}")
 
         results.append({
             "question": question,

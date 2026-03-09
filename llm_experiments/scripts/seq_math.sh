@@ -11,7 +11,8 @@ TEMP=0.25
 MODEL=qwen_math
 BATCH_SIZE=10
 SAMPLE_IN_BLOCK=""
-
+SEMANTIC_BLOCK_TRUNCATE=""
+SEMANTIC_BLOCK_ONE_STEP=""
 usage() {
     echo "Usage: bash seq_math.sh [--num_shards N] [--num_seeds N] [--mcmc_steps N] [--temp T] [--model NAME] [--batch_size N] [--sample_in_block]"
 }
@@ -25,6 +26,8 @@ while [[ $# -gt 0 ]]; do
         --model) MODEL="$2"; shift 2 ;;
         --batch_size) BATCH_SIZE="$2"; shift 2 ;;
         --sample_in_block) SAMPLE_IN_BLOCK="--sample_in_block"; shift 1 ;;
+        --semantic_block_truncate) SEMANTIC_BLOCK_TRUNCATE="--semantic_block_truncate"; shift 1 ;;
+        --semantic_block_one_step) SEMANTIC_BLOCK_ONE_STEP="--semantic_block_one_step"; shift 1 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1"; usage; exit 1 ;;
     esac
@@ -49,7 +52,9 @@ for (( seed=0; seed<NUM_SEEDS; seed++ )); do
             --temp="$TEMP" \
             --seed="$seed" \
             --model="$MODEL" \
-            $SAMPLE_IN_BLOCK
+            $SAMPLE_IN_BLOCK \
+            $SEMANTIC_BLOCK_TRUNCATE \
+            $SEMANTIC_BLOCK_ONE_STEP \
             
     done
 done
