@@ -11,11 +11,20 @@ NUM_SEEDS=8
 SEED=$(( SLURM_ARRAY_TASK_ID % NUM_SEEDS ))
 BATCH_IDX=$(( SLURM_ARRAY_TASK_ID / NUM_SEEDS ))
 SOLVER="${SOLVER:-mcmc}"
+INDEX_SAMPLE="${INDEX_SAMPLE:-uniform}"
 NESTED_MODE="${NESTED_MODE:-block}"
-NEIGHBOR_BLOCKS="${NEIGHBOR_BLOCKS:-2}"
+NEIGHBOR_BLOCKS="${NEIGHBOR_BLOCKS:-}"
 W_MIN="${W_MIN:-0.0}"
 W_MAX="${W_MAX:-1e9}"
 SAVE_STR="${SAVE_STR:-results/}"
+
+if [[ -z "${NEIGHBOR_BLOCKS}" ]]; then
+  if [[ "${SOLVER}" == "nested" ]]; then
+    NEIGHBOR_BLOCKS=2
+  else
+    NEIGHBOR_BLOCKS=0
+  fi
+fi
 
 module load python/3.12.5-fasrc01
 module load cuda/12.4.1-fasrc01
@@ -40,6 +49,7 @@ python power_samp_math.py \
   --model=qwen_math \
   --save_str="${SAVE_STR}" \
   --solver="${SOLVER}" \
+  --index_sample="${INDEX_SAMPLE}" \
   --nested_mode="${NESTED_MODE}" \
   --neighbor_blocks="${NEIGHBOR_BLOCKS}" \
   --w_min="${W_MIN}" \

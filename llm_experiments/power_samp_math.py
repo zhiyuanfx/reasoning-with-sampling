@@ -46,11 +46,12 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", action = "store", type = int, default = 10)
     parser.add_argument("--seed", action = "store", type = int, default = 0)
     parser.add_argument("--sample_in_block", action = "store_true", default = False)
+    parser.add_argument("--index_sample", action="store", type=str, default="uniform", choices=["uniform", "inverse_prob"])
     parser.add_argument("--semantic_block_truncate", action="store_true", default=False)
     parser.add_argument("--semantic_block_one_step", action="store_true", default=False)
     parser.add_argument("--solver", action="store", type=str, default="mcmc", choices=["mcmc", "nested"])
     parser.add_argument("--nested_mode", action="store", type=str, default="block", choices=["block", "inverse_prob"])
-    parser.add_argument("--neighbor_blocks", action="store", type=int, default=2)
+    parser.add_argument("--neighbor_blocks", action="store", type=int, default=None)
     parser.add_argument("--w_min", action="store", type=float, default=0.0)
     parser.add_argument("--w_max", action="store", type=float, default=1e9)
     args = parser.parse_args()
@@ -66,6 +67,7 @@ if __name__ == "__main__":
     temp = args.temperature
     mcmc_steps = args.mcmc_steps
     sample_in_block = args.sample_in_block
+    index_sample = args.index_sample
     semantic_block_truncate = args.semantic_block_truncate
     semantic_block_one_step = args.semantic_block_one_step
     semantic_block = semantic_block_truncate or semantic_block_one_step
@@ -74,6 +76,8 @@ if __name__ == "__main__":
     neighbor_blocks = args.neighbor_blocks
     w_min = args.w_min
     w_max = args.w_max
+    if neighbor_blocks is None:
+        neighbor_blocks = 2 if solver == "nested" else 0
     save_str = os.path.join(args.save_str, model)
     os.makedirs(save_str, exist_ok=True)
 
@@ -139,7 +143,17 @@ if __name__ == "__main__":
         elif semantic_block_truncate:
             mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp_truncate(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
         else:
-            mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
+            mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp(
+                autoreg_sampler,
+                prefx,
+                temp,
+                mcmc_steps,
+                max_new_tokens=3072,
+                index_sample=index_sample,
+                neighbor_blocks=neighbor_blocks,
+                w_min=w_min,
+                w_max=w_max,
+            )
 
         # print(len(std_output))
         # print(len(naive_temp_output))
@@ -194,8 +208,6 @@ if __name__ == "__main__":
 
 
         
-
-
 
 
 

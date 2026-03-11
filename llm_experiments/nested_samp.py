@@ -8,65 +8,7 @@ import torch
 import transformers
 
 from constants import *
-from power_samp_utils import AutoregressiveSampler, naive_temp
-
-def sample_inverse_prob_index(
-    log_probs_norm,
-    c,
-    t,
-    jump_size,
-    neighbor_blocks=2,
-    w_min=0.0,
-    w_max=1e9,
-):
-    """
-    Sample a resampling start index idx in full-sequence coordinates.
-
-    Args:
-        log_probs_norm: cached token log probs for generated tokens only.
-                        log_probs_norm[i] corresponds to token at full position c + i.
-        c: length of prompt/context
-        t: current full sequence length
-        jump_size: block size in tokens
-        neighbor_blocks: how many neighboring blocks to consider.
-                         <= 0 means all generated prefix.
-        w_min, w_max: clipping range for logits based on -log p
-
-    Returns:
-        idx: integer in [start_idx, t - 1], using full-sequence indexing
-    """
-    if t <= c:
-        raise ValueError("Cannot sample inverse-prob index when there are no generated tokens.")
-
-    if neighbor_blocks <= 0:
-        start_idx = c
-    else:
-        start_idx = max(c, t - neighbor_blocks * jump_size)
-
-    end_idx = t - 1
-    assert start_idx <= end_idx
-
-    # candidate token offsets inside cached generated-token arrays
-    start_off = start_idx - c
-    end_off = end_idx - c
-
-    local_log_probs = log_probs_norm[start_off:end_off + 1]
-    weight_logits = np.clip(-local_log_probs, w_min, w_max).astype(np.float64)
-
-    # Sample according to softmax(clipped(-log p)); subtract max for stability.
-    if not np.all(np.isfinite(weight_logits)):
-        probs = np.ones_like(weight_logits, dtype=np.float64) / len(weight_logits)
-    else:
-        shifted = weight_logits - np.max(weight_logits)
-        weights = np.exp(shifted)
-        if (not np.all(np.isfinite(weights))) or weights.sum() <= 0:
-            probs = np.ones_like(weight_logits, dtype=np.float64) / len(weight_logits)
-        else:
-            probs = weights / weights.sum()
-
-    sampled_off = np.random.choice(np.arange(start_off, end_off + 1), p=probs)
-    idx = c + int(sampled_off)
-    return idx
+from power_samp_utils import AutoregressiveSampler, naive_temp, sample_inverse_prob_index
 
 
 @torch.inference_mode()

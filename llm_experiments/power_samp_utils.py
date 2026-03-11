@@ -96,8 +96,107 @@ def naive_temp(p : AutoregressiveSampler, context, temp, seq_len):
 
     return prop, log_probs_norm.cpu().numpy(), log_probs_unnorm.cpu().numpy()
 
+
+def sample_inverse_prob_index(
+    log_probs_norm,
+    c,
+    t,
+    jump_size,
+    neighbor_blocks=2,
+    w_min=0.0,
+    w_max=1e9,
+):
+    """
+    Sample a resampling start index idx in full-sequence coordinates.
+
+    Args:
+        log_probs_norm: cached token log probs for generated tokens only.
+                        log_probs_norm[i] corresponds to token at full position c + i.
+        c: length of prompt/context
+        t: current full sequence length
+        jump_size: block size in tokens
+        neighbor_blocks: how many neighboring blocks to consider.
+                         <= 0 means all generated prefix.
+        w_min, w_max: clipping range for logits based on -log p
+
+    Returns:
+        idx: integer in [start_idx, t - 1], using full-sequence indexing
+    """
+    if t <= c:
+        raise ValueError("Cannot sample inverse-prob index when there are no generated tokens.")
+
+    if neighbor_blocks <= 0:
+        start_idx = c
+    else:
+        start_idx = max(c, t - neighbor_blocks * jump_size)
+
+    end_idx = t - 1
+    assert start_idx <= end_idx
+
+    start_off = start_idx - c
+    end_off = end_idx - c
+
+    local_log_probs = log_probs_norm[start_off:end_off + 1]
+    weight_logits = np.clip(-local_log_probs, w_min, w_max).astype(np.float64)
+
+    if not np.all(np.isfinite(weight_logits)):
+        probs = np.ones_like(weight_logits, dtype=np.float64) / len(weight_logits)
+    else:
+        shifted = weight_logits - np.max(weight_logits)
+        weights = np.exp(shifted)
+        if (not np.all(np.isfinite(weights))) or weights.sum() <= 0:
+            probs = np.ones_like(weight_logits, dtype=np.float64) / len(weight_logits)
+        else:
+            probs = weights / weights.sum()
+
+    sampled_off = np.random.choice(np.arange(start_off, end_off + 1), p=probs)
+    idx = c + int(sampled_off)
+    return idx
+
+
+def sample_mcmc_index(
+    log_probs_norm,
+    c,
+    t,
+    jump_size,
+    index_sample="uniform",
+    neighbor_blocks=0,
+    w_min=0.0,
+    w_max=1e9,
+):
+    if t <= c:
+        raise ValueError("Cannot sample MCMC index when there are no generated tokens.")
+
+    if index_sample == "uniform":
+        start_idx = c if neighbor_blocks <= 0 else max(c, t - neighbor_blocks * jump_size)
+        return random.randint(start_idx, t - 1)
+
+    if index_sample == "inverse_prob":
+        return sample_inverse_prob_index(
+            log_probs_norm=log_probs_norm,
+            c=c,
+            t=t,
+            jump_size=jump_size,
+            neighbor_blocks=neighbor_blocks,
+            w_min=w_min,
+            w_max=w_max,
+        )
+
+    raise ValueError(f"Unknown index sampling mode: {index_sample}")
+
 @torch.inference_mode()
-def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_new_tokens, block_num=16, sample_in_block=False):
+def mcmc_power_samp(
+    p : AutoregressiveSampler,
+    context,
+    temp,
+    mcmc_steps,
+    max_new_tokens,
+    block_num=16,
+    index_sample="uniform",
+    neighbor_blocks=0,
+    w_min=0.0,
+    w_max=1e9,
+):
     c = len(context)
     gen = []
     if context is not None:
@@ -120,7 +219,16 @@ def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_ne
         for _ in range(mcmc_steps):
             attempts+=1
             t = len(gen)
-            idx = random.randint(c, t-1) if not sample_in_block else random.randint(max(c, t-jump_size), t-1)
+            idx = sample_mcmc_index(
+                log_probs_norm=log_probs_norm,
+                c=c,
+                t=t,
+                jump_size=jump_size,
+                index_sample=index_sample,
+                neighbor_blocks=neighbor_blocks,
+                w_min=w_min,
+                w_max=w_max,
+            )
             prop, log_prob_prop, target_log_prob_prop = naive_temp(p, gen[:idx], temp=temp, seq_len=t)
             s = len(prop)
             assert(len(log_prob_prop) == s - idx)
@@ -142,11 +250,11 @@ def mcmc_power_samp(p : AutoregressiveSampler, context, temp, mcmc_steps, max_ne
             eos_idx = gen.index(p.tokenizer.eos_token_id)
             gen = gen[:eos_idx + 1]
             gen_new_len = max(0, (eos_idx + 1) - c)
-            acceptance_ratio = acceptances/attempts
+            acceptance_ratio = acceptances/attempts if attempts > 0 else 0.0
             assert len(gen) == c + gen_new_len
             return gen, log_probs_norm[:gen_new_len], log_probs_unnorm[:gen_new_len], acceptance_ratio
 
-    acceptance_ratio = acceptances/attempts
+    acceptance_ratio = acceptances/attempts if attempts > 0 else 0.0
     return gen, log_probs_norm[:filled], log_probs_unnorm[:filled], acceptance_ratio
 
 
