@@ -30,9 +30,7 @@ import transformers
 from grader_utils.parse_utils import parse_answer
 from constants import *
 from power_samp_utils import *
-
-
-
+from nested_samp import nested_power_samp
 
 
 if __name__ == "__main__":
@@ -50,6 +48,11 @@ if __name__ == "__main__":
     parser.add_argument("--sample_in_block", action = "store_true", default = False)
     parser.add_argument("--semantic_block_truncate", action="store_true", default=False)
     parser.add_argument("--semantic_block_one_step", action="store_true", default=False)
+    parser.add_argument("--solver", action="store", type=str, default="mcmc", choices=["mcmc", "nested"])
+    parser.add_argument("--nested_mode", action="store", type=str, default="block", choices=["block", "inverse_prob"])
+    parser.add_argument("--neighbor_blocks", action="store", type=int, default=2)
+    parser.add_argument("--w_min", action="store", type=float, default=0.0)
+    parser.add_argument("--w_max", action="store", type=float, default=1e9)
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -66,6 +69,11 @@ if __name__ == "__main__":
     semantic_block_truncate = args.semantic_block_truncate
     semantic_block_one_step = args.semantic_block_one_step
     semantic_block = semantic_block_truncate or semantic_block_one_step
+    solver = args.solver
+    nested_mode = args.nested_mode
+    neighbor_blocks = args.neighbor_blocks
+    w_min = args.w_min
+    w_max = args.w_max
     save_str = os.path.join(args.save_str, model)
     os.makedirs(save_str, exist_ok=True)
 
@@ -124,7 +132,9 @@ if __name__ == "__main__":
         print(f"[info] std done in {time.perf_counter() - t0_std} seconds")
 
         t0_mcmc = time.perf_counter()
-        if semantic_block_one_step:
+        if solver == "nested":
+            mcmc_power_samp_output, _, _, acceptance_ratio = nested_power_samp(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, mode=nested_mode, neighbor_blocks=neighbor_blocks, w_min=w_min, w_max=w_max)
+        elif semantic_block_one_step:
             mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp_one_step(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
         elif semantic_block_truncate:
             mcmc_power_samp_output, _, _, acceptance_ratio = mcmc_power_samp_truncate(autoreg_sampler, prefx, temp, mcmc_steps, max_new_tokens=3072, sample_in_block=sample_in_block)
@@ -154,7 +164,7 @@ if __name__ == "__main__":
         # print(mcmc_answer)
         # print(question)
         # print(answer)
-        print(f"[mcmc completion]: {mcmc_completion}")
+        # print(f"[mcmc completion]: {mcmc_completion}")
 
         results.append({
             "question": question,
